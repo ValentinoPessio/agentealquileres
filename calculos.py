@@ -250,3 +250,35 @@ def proyectar_icl_mensual(
         normalizar_mes(m): round(float(v) + ripte_vs_ipc_pp / 2.0, 4)
         for m, v in ipc_proyectado_pct.items()
     }
+
+
+# ---------------------------------------------------------------------------
+# Presentación
+# ---------------------------------------------------------------------------
+
+def formatear_pesos(monto: float) -> str:
+    """432810.62 -> '$ 432.810,62' (formato argentino)."""
+    texto = f"{monto:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    return f"$ {texto}"
+
+
+def tabla_markdown(filas: list[dict]) -> str:
+    """Convierte las filas del cronograma en una tabla markdown."""
+    lineas = [
+        "| Mes | Alquiler | Ajuste | Variación aplicada | Fuente |",
+        "|---|---:|:---:|---:|---|",
+    ]
+    for f in filas:
+        ajuste = "Sí" if f["ajuste"] else "—"
+        variacion = (
+            f"{f['variacion_pct']:.2f} %".replace(".", ",")
+            if f["variacion_pct"] is not None
+            else "—"
+        )
+        fuente = f["fuente"] if f["fuente"] != "sin ajuste" else "—"
+        if f.get("nota") and f["fuente"] == "sin dato":
+            fuente = f"sin dato ({f['nota']})"
+        lineas.append(
+            f"| {f['mes']} | {formatear_pesos(f['monto'])} | {ajuste} | {variacion} | {fuente} |"
+        )
+    return "\n".join(lineas)

@@ -34,19 +34,34 @@ python scripts/probar_modelo.py
 Comprueba tres cosas: que el modelo llama a una tool, si devuelve bloques de
 razonamiento, y que la memoria de corto plazo funciona entre turnos.
 
+## Ejecutar la app
+
+```bash
+streamlit run app.py
+```
+
+Subí un contrato (PDF o TXT con texto seleccionable) desde la barra lateral y
+escribí tu consulta. La UI muestra, mientras el agente trabaja, cada tool
+invocada con sus argumentos, su resultado y el razonamiento del modelo (si el
+proveedor lo expone), y después la respuesta final en markdown. La memoria de
+corto plazo es por conversación; "Nueva conversación" la reinicia.
+
 ## Tests
 
 ```bash
 pytest
 ```
 
+Los tests no llaman a Gemini: el agente se prueba con un modelo simulado.
+
 ## Estructura
 
 ```
-app.py              UI en Streamlit (pendiente)
-agente.py           create_agent + prompt de sistema (pendiente)
+app.py              UI en Streamlit (streaming de pasos, memoria por conversación)
+agente.py           create_agent + prompt de sistema + checkpointer
+flujo.py            convierte los mensajes del agente en pasos para la UI
 model.py            adaptador de proveedor LLM
-tools.py            tools del agente (pendiente)
+tools.py            tools del agente (leer_contrato, calcular_cronograma, proyectar_inflacion)
 calculos.py         lógica pura de cálculo (cronograma, proyección)
 contratos.py        lectura de PDF/TXT y división en cláusulas
 rag/                ingesta y base vectorial (pendiente)
