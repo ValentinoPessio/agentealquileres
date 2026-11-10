@@ -63,14 +63,29 @@ def test_calcular_cronograma_avisa_datos_faltantes():
     r = tools.calcular_cronograma.invoke(
         {
             "monto_inicial": 100000,
+            "fecha_inicio": "2026-10",
+            "meses_totales": 4,
+            "periodicidad_meses": 3,
+            "tipo_indice": "IPC",
+        }
+    )
+    # El ajuste de 2027-01 necesita oct-dic 2026 y las series reales llegan a sep-2026.
+    assert r["cantidad_de_ajustes"] == 0
+    assert len(r["advertencias"]) == 1
+
+
+def test_calcular_cronograma_usa_series_oficiales_si_no_se_pasan_variaciones():
+    r = tools.calcular_cronograma.invoke(
+        {
+            "monto_inicial": 100000,
             "fecha_inicio": "2025-03",
             "meses_totales": 4,
             "periodicidad_meses": 3,
             "tipo_indice": "IPC",
         }
     )
-    assert r["cantidad_de_ajustes"] == 0
-    assert len(r["advertencias"]) == 1
+    assert r["cantidad_de_ajustes"] == 1 and not r["advertencias"]
+    assert "INDEC" in r["fuente_datos_reales"]
 
 
 def test_proyectar_inflacion_tool():
@@ -137,6 +152,40 @@ def test_leer_contrato_archivo_inexistente_no_rompe(tmp_path, monkeypatch):
 
 def test_nombres_y_descripciones_de_las_tools():
     nombres = [t.name for t in tools.TOOLS]
-    assert nombres == ["leer_contrato", "calcular_cronograma", "proyectar_inflacion", "buscar_normativa"]
+    assert nombres == ["leer_contrato", "consultar_indices", "calcular_cronograma", "proyectar_inflacion", "buscar_normativa"]
     for t in tools.TOOLS:
         assert t.description and len(t.description) > 40
+
+
+def test_consultar_indices_ipc_icl_y_rem():
+    ipc = tools.consultar_indices.invoke({"indice": "IPC", "desde": "2026-07", "hasta": "2026-09"})
+    assert [v["mes"] for v in ipc["variaciones_mensuales_pct"]] == ["2026-07", "2026-08", "2026-09"]
+    assert ipc["ultimo_mes_disponible"] == "2026-09" and "INDEC" in ipc["fuente"]
+    icl = tools.consultar_indices.invoke({"indice": "ICL", "desde": "2026-10"})
+    assert icl["variaciones_mensuales_pct"][0]["pct"] == pytest.approx(1.83, abs=0.01)
+    rem = tools.consultar_indices.invoke({"indice": "REM"})
+    assert rem["proximos_12_meses_pct"] == 21.8 and "2026-10" in rem["inflacion_mensual_esperada_pct"]
+
+
+def test_consultar_indices_rango_vacio_da_error():
+    r = tools.consultar_indices.invoke({"indice": "IPC", "desde": "2030-01"})
+    assert "error" in r and "2026-09" in r["error"]
+
+
+def test_proyectar_inflacion_usa_el_rem_guardado_y_cierra_en_la_expectativa_a_12_meses():
+    r = tools.proyectar_inflacion.invoke({"indice": "IPC", "meses": 12})
+    meses = [v["mes"] for v in r["variaciones_proyectadas"]]
+    assert meses[0] == "2026-10" and len(meses) == 12
+    ventana = [v["pct"] for v in r["variaciones_proyectadas"] if v["mes"] >= "2026-11"]  # nov-26 a sep-27
+    assert len(ventana) == 11
+    assert "BCRA" in r["supuestos"][0]
+
+
+def test_proyectar_inflacion_icl_empieza_donde_terminan_los_datos_reales_del_icl():
+    r = tools.proyectar_inflacion.invoke({"indice": "ICL", "meses": 6})
+    assert r["variaciones_proyectadas"][0]["mes"] == "2026-11"
+
+
+def test_proyectar_inflacion_exige_los_tres_datos_del_rem_propio():
+    r = tools.proyectar_inflacion.invoke({"rem_mensual_pct": [2.0] * 6})
+    assert "error" in r

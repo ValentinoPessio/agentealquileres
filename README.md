@@ -60,6 +60,21 @@ python -m rag.ingest
 Crea `chroma_db/` (ignorado por git) con un fragmento por artículo. Hay que correrlo una vez
 antes de usar la app.
 
+## Series de IPC, ICL y REM
+
+Las series oficiales viven en `data/indices/indices.json` (versionado, con fuente y fecha).
+Se generan con `scripts/generar_indices.py` a partir de tres archivos oficiales que se
+descargan a mano y no se versionan: el CSV del IPC nivel general (INDEC), el CSV del ICL
+(BCRA, variable 40) y el Excel de tablas del REM (BCRA).
+
+```bash
+python scripts/generar_indices.py --fuentes data/indices/fuentes
+```
+
+Se usan archivos guardados y no una API en vivo para que la demo no dependa de la red;
+el JSON indica hasta qué mes llegan los datos reales (hoy IPC a sep-2026, ICL a oct-2026).
+Para actualizarlos hay que bajar los archivos nuevos y volver a correr el script.
+
 ## Tests
 
 ```bash
@@ -75,7 +90,8 @@ app.py              UI en Streamlit (streaming de pasos, memoria por conversaci�
 agente.py           create_agent + prompt de sistema + checkpointer
 flujo.py            convierte los mensajes del agente en pasos para la UI
 model.py            adaptador de proveedor LLM
-tools.py            tools del agente (leer_contrato, calcular_cronograma, proyectar_inflacion)
+tools.py            tools del agente (leer_contrato, consultar_indices, calcular_cronograma, proyectar_inflacion, buscar_normativa)
+indices.py          lectura de las series oficiales guardadas (IPC, ICL, REM)
 calculos.py         lógica pura de cálculo (cronograma, proyección)
 contratos.py        lectura de PDF/TXT y división en cláusulas
 rag/                ingesta (rag/ingest.py) y búsqueda (rag/buscar.py) de la normativa
