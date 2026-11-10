@@ -83,3 +83,15 @@ def test_errores_claros(tmp_path):
     roto.write_bytes(b"esto no es un pdf")
     with pytest.raises(ContratoError):
         leer_contrato(roto)
+
+
+def test_contratos_de_ejemplo_se_leen_y_dividen_en_clausulas():
+    from pathlib import Path
+
+    carpeta = Path(__file__).resolve().parent.parent / "data" / "contratos_ejemplo"
+    archivos = sorted(carpeta.glob("*.txt")) + sorted(carpeta.glob("*.pdf"))
+    assert len(archivos) >= 4
+    for archivo in archivos:
+        r = leer_contrato(str(archivo))
+        assert len(r["clausulas"]) == 10, archivo.name  # encabezado + 9 cláusulas
+        assert not r["advertencias"], archivo.name
