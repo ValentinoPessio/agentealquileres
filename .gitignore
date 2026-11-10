@@ -222,3 +222,6 @@ __marimo__/
 # Proyecto: agente de alquileres
 chroma_db/
 outputs/
+
+# Páginas fuente descargadas de InfoLEG (solo locales, pesan mucho)
+data/normativa/fuentes/
