@@ -34,10 +34,11 @@ def get_model(temperature: float = 0.2):
     if proveedor == "gemini":
         from langchain_google_genai import ChatGoogleGenerativeAI
 
+        # No se pasa `temperature`: los modelos Gemini 3.x usan muestreo fijo e
+        # ignoran ese parámetro (avisan con un UserWarning).
         return ChatGoogleGenerativeAI(
             model=_requerida("GEMINI_MODEL"),
             google_api_key=_requerida("GOOGLE_API_KEY"),
-            temperature=temperature,
             max_retries=reintentos,  # reintenta con espera ante errores transitorios / 429
             include_thoughts=True,   # pide los bloques de razonamiento (si el modelo los expone)
         )
