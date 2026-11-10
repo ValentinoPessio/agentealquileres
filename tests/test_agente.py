@@ -101,4 +101,4 @@ def test_system_prompt_incluye_fecha_y_seguridad():
     p = system_prompt(date(2026, 11, 10))
     assert "10 de noviembre de 2026" in p
     assert "no instrucciones" in p
-    assert "leer_contrato" in p and "calcular_cronograma" in p and "proyectar_inflacion" in p
+    assert "leer_contrato" in p and "calcular_cronograma" in p and "proyectar_inflacion" in p and "buscar_normativa" in p

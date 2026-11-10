@@ -235,4 +235,41 @@ def proyectar_inflacion(
     }
 
 
-TOOLS = [leer_contrato, calcular_cronograma, proyectar_inflacion]
+# ---------------------------------------------------------------------------
+# buscar_normativa (RAG)
+# ---------------------------------------------------------------------------
+
+class BuscarNormativaArgs(BaseModel):
+    consulta: str = Field(
+        description="Tema legal a buscar, en lenguaje natural. Ejemplo: "
+        "'rescisión anticipada del inquilino y penalidad' o 'depósito en garantía'."
+    )
+    cantidad: int = Field(default=4, ge=1, le=8, description="Cantidad de artículos a devolver.")
+
+
+@tool(args_schema=BuscarNormativaArgs)
+def buscar_normativa(consulta: str, cantidad: int = 4) -> dict:
+    """Busca en la normativa argentina de alquileres (Código Civil y Comercial, DNU 70/2023,
+    Ley 24.240) los artículos relacionados con la consulta y los devuelve con su cita."""
+    from rag.buscar import buscar_normativa as buscar
+
+    try:
+        articulos = buscar(consulta, k=cantidad)
+    except Exception as e:  # noqa: BLE001 - el agente debe poder explicar el problema
+        return {"error": f"No se pudo consultar la normativa: {e}"}
+    if not articulos:
+        return {"articulos": [], "aviso": "No se encontraron artículos relacionados."}
+    return {
+        "articulos": [
+            {
+                "cita": f"{a['norma']}, art. {a['articulo']}",
+                "estado": a["estado"],
+                "texto": a["texto"],
+                "fuente": a["fuente"],
+            }
+            for a in articulos
+        ]
+    }
+
+
+TOOLS = [leer_contrato, calcular_cronograma, proyectar_inflacion, buscar_normativa]

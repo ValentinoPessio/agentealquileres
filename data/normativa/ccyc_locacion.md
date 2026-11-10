@@ -80,8 +80,7 @@ ARTICULO 1203.- Frustración del uso o goce de la cosa. Si por causas no imputab
 ARTICULO 1204.- (Artículo derogado por art. 259 del Decreto N° 70/2023 B.O. 21/12/2023)
 
 ## Art. 1204 bis
-ARTICULO 1204 bis.- (Artículo derogado por art. 259 del Decreto N° 70/2023 B.O. 21/12/2023) Parágrafo 2°
-Obligaciones del locatario
+ARTICULO 1204 bis.- (Artículo derogado por art. 259 del Decreto N° 70/2023 B.O. 21/12/2023)
 
 ## Art. 1205
 ARTICULO 1205.- Prohibición de variar el destino. El locatario puede usar y gozar de la cosa conforme a derecho y exclusivamente para el destino correspondiente. No puede variarlo aunque ello no cause perjuicio al locador.
@@ -106,8 +105,6 @@ tiene a su cargo el pago de las cargas y contribuciones que se originen en el de
 ## Art. 1210
 ARTICULO 1210.- Restituir la cosa. El locatario, al concluir el contrato, debe restituir al locador la cosa en el estado en que la recibió, excepto los deterioros provenientes del mero transcurso del tiempo y el uso regular.
 También debe entregarle las constancias de los pagos que efectuó en razón de la relación locativa y que resulten atinentes a la cosa o a los servicios que tenga.
-Parágrafo 3°
-Régimen de mejoras
 
 ## Art. 1211
 ARTICULO 1211.- Regla. El locatario puede realizar mejoras en la cosa locada, excepto que esté prohibido en el contrato, alteren la substancia o forma de la cosa, o haya sido interpelado a restituirla. No tiene derecho a reclamar el pago de mejoras útiles y de mero lujo o suntuarias, pero, si son mejoras necesarias, puede reclamar su valor al locador.

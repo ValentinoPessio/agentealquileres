@@ -36,7 +36,12 @@ RE_ARTICULO = re.compile(
 )
 RE_ARTICULO_MAYUS = re.compile(r"^\s*ART[IÍ]CULO\s+\d")
 RE_ESTRUCTURA = re.compile(r"^\s*(LIBRO|T[IÍ]TULO|CAP[IÍ]TULO|SECCI[OÓ]N|PAR[AÁ]GRAFO)\s+\S+")
-RE_TITULO_FINAL = re.compile(r"^\s*(LIBRO|T[IÍ]TULO|CAP[IÍ]TULO|SECCI[OÓ]N)\s+[IVXLC\d]+\b\s*[-–.]?", re.IGNORECASE)
+RE_TITULO_FINAL = re.compile(
+    r"^\s*(LIBRO|T[IÍ]TULO|CAP[IÍ]TULO|SECCI[OÓ]N|PAR[AÁ]GRAFO)\s+[IVXLC\d]+\b[º°]?\s*[-–.]?", re.IGNORECASE
+)
+RE_TITULO_EN_LINEA = re.compile(
+    r"\s+(PAR[AÁ]GRAFO|SECCI[OÓ]N|CAP[IÍ]TULO|T[IÍ]TULO)\s+[IVXLC\d]+[º°]?\s*$", re.IGNORECASE
+)
 RE_INICIO_PARRAFO =re.compile(r"^(\(|[a-zñ]\)\s|\d+[\)\.]\s|[-•–]\s|[IVX]+\.\s)")
 LARGO_LINEA_COMPLETA = 55  # una línea más corta que esto cierra el párrafo
 
@@ -160,6 +165,26 @@ def encabezados(lineas: list[str]) -> list[tuple[int, int, str]]:
     return resultado
 
 
+def recortar_titulos_finales(cuerpo: list[str]) -> list[str]:
+    """Quita los títulos de estructura que InfoLEG deja pegados al final de un artículo.
+
+    Casos: una línea "Parágrafo 3°" seguida de su nombre ("Régimen de mejoras"), o
+    el rótulo pegado al final de la nota del artículo ("... B.O. 21/12/2023) Parágrafo 2°").
+    """
+    cuerpo = list(cuerpo)
+    while len(cuerpo) > 1:
+        if RE_TITULO_FINAL.match(cuerpo[-1]):
+            cuerpo.pop()
+        elif len(cuerpo) > 2 and RE_TITULO_FINAL.match(cuerpo[-2]) and len(cuerpo[-1]) < 80:
+            del cuerpo[-2:]
+        elif len(cuerpo) > 1 and RE_TITULO_EN_LINEA.search(cuerpo[-2]) and len(cuerpo[-1]) < 80:
+            cuerpo = cuerpo[:-1]
+            cuerpo[-1] = RE_TITULO_EN_LINEA.sub("", cuerpo[-1])
+        else:
+            break
+    return cuerpo
+
+
 def extraer_bloques(
     lineas: list[str],
     rangos: list[tuple[int, int]],
@@ -194,8 +219,7 @@ def extraer_bloques(
             cuerpo = lineas[inicio:fin]
             # Títulos de la norma que contiene al artículo ("Capítulo I - ...",
             # "Título XI – SALUD") que quedaron pegados al final: no son parte del artículo.
-            while cuerpo and RE_TITULO_FINAL.match(cuerpo[-1]):
-                cuerpo = cuerpo[:-1]
+            cuerpo = recortar_titulos_finales(cuerpo)
             bloques.append({"numero": num, "sufijo": sufijo, "lineas": cuerpo, "inicio": inicio})
             ultimo_inicio = max(ultimo_inicio, inicio) if not sufijo else ultimo_inicio
     return bloques, faltantes

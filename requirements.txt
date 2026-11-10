@@ -6,6 +6,7 @@ langchain-google-genai   # Gemini (chat + embeddings)
 
 # RAG
 chromadb
+langchain-chroma
 
 # UI
 streamlit

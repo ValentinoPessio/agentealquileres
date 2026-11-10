@@ -137,6 +137,6 @@ def test_leer_contrato_archivo_inexistente_no_rompe(tmp_path, monkeypatch):
 
 def test_nombres_y_descripciones_de_las_tools():
     nombres = [t.name for t in tools.TOOLS]
-    assert nombres == ["leer_contrato", "calcular_cronograma", "proyectar_inflacion"]
+    assert nombres == ["leer_contrato", "calcular_cronograma", "proyectar_inflacion", "buscar_normativa"]
     for t in tools.TOOLS:
         assert t.description and len(t.description) > 40

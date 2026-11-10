@@ -46,6 +46,20 @@ invocada con sus argumentos, su resultado y el razonamiento del modelo (si el
 proveedor lo expone), y después la respuesta final en markdown. La memoria de
 corto plazo es por conversación; "Nueva conversación" la reinicia.
 
+## Construir el índice de normativa (RAG)
+
+Los textos legales (CCyC locación y cláusulas abusivas, DNU 70/2023, Ley 24.240) están
+en `data/normativa/*.md`, un artículo por bloque `## Art. N`. Se generaron con
+`scripts/extraer_normativa.py` a partir de las páginas de InfoLEG (reproducible: guardar las
+páginas en `data/normativa/fuentes/` y correr el script). Para indexarlos:
+
+```bash
+python -m rag.ingest
+```
+
+Crea `chroma_db/` (ignorado por git) con un fragmento por artículo. Hay que correrlo una vez
+antes de usar la app.
+
 ## Tests
 
 ```bash
@@ -64,7 +78,7 @@ model.py            adaptador de proveedor LLM
 tools.py            tools del agente (leer_contrato, calcular_cronograma, proyectar_inflacion)
 calculos.py         lógica pura de cálculo (cronograma, proyección)
 contratos.py        lectura de PDF/TXT y división en cláusulas
-rag/                ingesta y base vectorial (pendiente)
+rag/                ingesta (rag/ingest.py) y búsqueda (rag/buscar.py) de la normativa
 data/normativa/     textos legales para el RAG
 data/contratos_ejemplo/   contratos ficticios para pruebas
 scripts/            utilidades
