@@ -7,7 +7,9 @@ from datetime import date
 from langchain.agents import create_agent
 from langgraph.checkpoint.memory import InMemorySaver
 
-from model import get_model
+from langchain.agents.middleware import ModelFallbackMiddleware
+
+from model import get_fallback_models, get_model
 from tools import TOOLS
 
 MESES = (
@@ -45,9 +47,15 @@ def crear_agente(modelo=None, checkpointer=None):
     `checkpointer` es lo que da la memoria de corto plazo: cada conversación se
     identifica con un `thread_id` y el agente recuerda sus turnos anteriores.
     """
+    # Middleware (el único): si el modelo principal falla (típicamente 429 por cuota diaria
+    # del tier gratuito), prueba los modelos de GEMINI_FALLBACK_MODELS en orden. Lo resuelve
+    # el middleware incluido en LangChain; hacerlo a mano implicaría reescribir el bucle del agente.
+    # Con un modelo pasado explícitamente (tests) no se usan respaldos.
+    respaldos = get_fallback_models() if modelo is None else []
     return create_agent(
         model=modelo or get_model(),
         tools=TOOLS,
         system_prompt=system_prompt(),
         checkpointer=checkpointer or InMemorySaver(),
+        middleware=[ModelFallbackMiddleware(*respaldos)] if respaldos else [],
     )

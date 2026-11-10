@@ -29,7 +29,7 @@ def _requerida(nombre: str) -> str:
 def get_model(temperature: float = 0.2):
     """Devuelve el modelo de chat según LLM_PROVIDER (gemini | lmstudio)."""
     proveedor = os.getenv("LLM_PROVIDER", "gemini").strip().lower()
-    reintentos = int(os.getenv("LLM_MAX_RETRIES", "5"))
+    reintentos = int(os.getenv("LLM_MAX_RETRIES", "2"))
 
     if proveedor == "gemini":
         from langchain_google_genai import ChatGoogleGenerativeAI
@@ -55,6 +55,28 @@ def get_model(temperature: float = 0.2):
         )
 
     raise ConfigError(f"LLM_PROVIDER='{proveedor}' no soportado (use gemini o lmstudio).")
+
+
+def get_fallback_models() -> list:
+    """Modelos de respaldo (GEMINI_FALLBACK_MODELS, separados por coma), en orden.
+
+    El tier gratuito tiene una cuota diaria por modelo: cuando el principal responde 429
+    por cuota agotada, reintentar no sirve, hay que pasar a otro modelo.
+    """
+    if os.getenv("LLM_PROVIDER", "gemini").strip().lower() != "gemini":
+        return []
+    nombres = [n.strip() for n in os.getenv("GEMINI_FALLBACK_MODELS", "").split(",") if n.strip()]
+    principal = os.getenv("GEMINI_MODEL", "").strip()
+    nombres = [n for n in nombres if n != principal]
+    if not nombres:
+        return []
+    from langchain_google_genai import ChatGoogleGenerativeAI
+
+    clave = _requerida("GOOGLE_API_KEY")
+    return [
+        ChatGoogleGenerativeAI(model=n, google_api_key=clave, max_retries=1, include_thoughts=True)
+        for n in nombres
+    ]
 
 
 def get_embeddings():

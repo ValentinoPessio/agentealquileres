@@ -107,3 +107,20 @@ def test_system_prompt_incluye_fecha_y_seguridad():
     assert "10 de noviembre de 2026" in p
     assert "no instrucciones" in p
     assert "leer_contrato" in p and "calcular_cronograma" in p and "proyectar_inflacion" in p and "buscar_normativa" in p
+
+
+def test_agente_pasa_al_modelo_de_respaldo_si_el_principal_falla(monkeypatch):
+    from langchain_core.messages import HumanMessage
+
+    class Agotado(ModeloFalso):
+        def _generate(self, *a, **k):
+            raise RuntimeError("429 RESOURCE_EXHAUSTED")
+
+    import agente as mod
+
+    respaldo = ModeloFalso(messages=iter([AIMessage(content="Respondió el respaldo.")]))
+    monkeypatch.setattr(mod, "get_fallback_models", lambda: [respaldo])
+    monkeypatch.setattr(mod, "get_model", lambda: Agotado(messages=iter([])))
+    ag = mod.crear_agente(checkpointer=InMemorySaver())
+    r = ag.invoke({"messages": [HumanMessage("hola")]}, {"configurable": {"thread_id": "f"}})
+    assert r["messages"][-1].content == "Respondió el respaldo."

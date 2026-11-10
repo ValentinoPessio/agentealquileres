@@ -75,6 +75,20 @@ Se usan archivos guardados y no una API en vivo para que la demo no dependa de l
 el JSON indica hasta qué mes llegan los datos reales (hoy IPC a sep-2026, ICL a oct-2026).
 Para actualizarlos hay que bajar los archivos nuevos y volver a correr el script.
 
+## Límites del tier gratuito y modelos de respaldo
+
+El tier gratuito de Gemini tiene una cuota diaria por modelo (en el modelo actual, 20 pedidos
+por día), y cada paso del agente consume un pedido. Cuando se agota, la API responde
+`429 RESOURCE_EXHAUSTED` y reintentar no sirve. Por eso `GEMINI_FALLBACK_MODELS` (en `.env`)
+lista modelos de respaldo y el agente pasa al siguiente automáticamente.
+
+**Middleware usado (el único): `ModelFallbackMiddleware` de LangChain.** Resuelve el problema
+de la cuota diaria sin reescribir el bucle del agente. Los reintentos con espera ante errores
+transitorios (429 por minuto, 503) los hace el propio cliente (`LLM_MAX_RETRIES`).
+
+Para el caso de demo conviene un contrato corto y pocas preguntas: una consulta completa usa
+entre 4 y 8 pedidos.
+
 ## Tests
 
 ```bash

@@ -163,7 +163,9 @@ if consulta:
         except Exception as exc:  # noqa: BLE001 - se muestra al usuario
             texto_final = (
                 f"Falló la llamada al modelo: `{type(exc).__name__}`. "
-                "Si es un 429 o 503, el servicio está saturado: esperá un momento y reintentá."
+                "Si es un 429 con \"RESOURCE_EXHAUSTED\", se agotó la cuota gratuita del modelo "
+                "(se renueva a diario): probá con otro modelo en GEMINI_FALLBACK_MODELS. "
+                "Si es un 503, el servicio está saturado: esperá un momento y reintentá."
             )
             st.error(f"{type(exc).__name__}: {exc}")
 
