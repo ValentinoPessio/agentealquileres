@@ -218,3 +218,7 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Proyecto: agente de alquileres
+chroma_db/
+outputs/

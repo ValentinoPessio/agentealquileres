@@ -1,0 +1,23 @@
+# Agente
+langchain
+langgraph
+langchain-google-genai   # Gemini (chat + embeddings)
+# langchain-openai       # solo si usan LM Studio como proveedor local (LLM_PROVIDER=lmstudio)
+
+# RAG
+chromadb
+
+# UI
+streamlit
+
+# Tools / utilidades
+pypdf
+pandas
+requests
+python-dotenv
+
+# Tests
+pytest
+
+# Nota: después de instalar y comprobar que todo funciona, fijen versiones
+# con `pip freeze > requirements.lock.txt` y mencionenlo en el README.
