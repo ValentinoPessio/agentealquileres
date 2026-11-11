@@ -100,6 +100,11 @@ def test_system_prompt_no_permite_describir_el_regimen_anterior_de_memoria():
     assert "Ley 27.551" in p and "de memoria" in p
 
 
+def test_system_prompt_separa_lo_que_dice_el_articulo_de_la_apreciacion_propia():
+    p = system_prompt()
+    assert "solo lo que dice su texto recuperado" in p and "apreciación tuya" in p
+
+
 def test_system_prompt_incluye_fecha_y_seguridad():
     from datetime import date
 
