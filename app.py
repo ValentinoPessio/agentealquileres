@@ -18,7 +18,56 @@ from model import ConfigError
 
 UPLOADS = Path(__file__).resolve().parent / "outputs" / "uploads"
 
-st.set_page_config(page_title="Revisor de contratos de alquiler", layout="wide")
+st.set_page_config(
+    page_title="Revisor de contratos de alquiler", page_icon=":material/home_work:", layout="wide"
+)
+
+CONTRATOS_EJEMPLO = Path(__file__).resolve().parent / "data" / "contratos_ejemplo"
+
+# Etiquetas legibles para el estado del agente mientras trabaja.
+ETAPAS = {
+    "leer_contrato": "Leyendo el contrato",
+    "buscar_normativa": "Consultando la normativa",
+    "consultar_indices": "Consultando índices oficiales",
+    "proyectar_inflacion": "Proyectando la inflación",
+    "calcular_cronograma": "Calculando el cronograma de alquileres",
+}
+
+SUGERENCIAS = [
+    ("Revisar un contrato", "Revisá este contrato y marcame las cláusulas problemáticas."),
+    ("Proyectar el alquiler", "Mostrame cómo se actualiza el alquiler en los próximos 12 meses."),
+    ("Rescisión anticipada", "¿Puedo rescindir antes de tiempo y cuánto pagaría?"),
+]
+
+ESTILOS = """
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Lora:wght@500;600&display=swap');
+:root { --petroleo:#1F3A5F; --laton:#A67C37; --papel:#F7F5F0; --borde:#D9D3C5; }
+h1, h2, h3, .encabezado h1 { font-family: 'Lora', Georgia, 'Times New Roman', serif !important; color: var(--petroleo); letter-spacing: 0; }
+[data-testid="stSidebar"] { border-right: 1px solid var(--borde); }
+[data-testid="stSidebar"] h2 { font-size: 1.05rem; text-transform: uppercase; letter-spacing: .08em; color: var(--laton); }
+.encabezado { display:flex; align-items:center; gap:.9rem; padding-bottom:.6rem; border-bottom:2px solid var(--laton); margin-bottom:.4rem; }
+.encabezado h1 { margin:0; padding:0; font-size:1.9rem; line-height:1.2; }
+.encabezado svg { flex:none; }
+.aviso { color:#5B6670; font-size:.88rem; margin:.2rem 0 1rem 0; }
+.contrato-activo { background:#fff; border:1px solid var(--borde); border-left:4px solid var(--laton); border-radius:6px; padding:.55rem .75rem; font-size:.9rem; }
+.contrato-activo small { color:#5B6670; display:block; }
+[data-testid="stChatMessage"] { background:#fff; border:1px solid var(--borde); border-radius:8px; }
+[data-testid="stMarkdownContainer"] table { border-collapse:collapse; width:100%; font-size:.92rem; }
+[data-testid="stMarkdownContainer"] th { background:var(--petroleo); color:#fff; padding:.45rem .6rem; border:1px solid var(--petroleo); }
+[data-testid="stMarkdownContainer"] td { padding:.4rem .6rem; border:1px solid var(--borde); }
+[data-testid="stMarkdownContainer"] tbody tr:nth-child(even) td { background:#F4F1EA; }
+.stButton > button { border-radius:6px; border:1px solid var(--petroleo); }
+</style>
+"""
+
+ICONO = (
+    '<svg width="44" height="44" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">'
+    '<path d="M6 22 24 7l18 15" stroke="#1F3A5F" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>'
+    '<path d="M11 20v20h26V20" stroke="#1F3A5F" stroke-width="3" stroke-linejoin="round"/>'
+    '<circle cx="24" cy="27" r="3.5" stroke="#A67C37" stroke-width="2.5"/>'
+    '<path d="M24 30.5V37m0-3h3" stroke="#A67C37" stroke-width="2.5" stroke-linecap="round"/></svg>'
+)
 
 
 # ---------------------------------------------------------------------------
@@ -59,15 +108,15 @@ def _guardar_adjunto(archivo) -> str:
 def mostrar_paso(paso: dict) -> None:
     tipo = paso["tipo"]
     if tipo == "razonamiento":
-        st.markdown("**Razonamiento**")
+        st.markdown(":material/psychology: **Razonamiento**")
         st.caption(paso["texto"])
     elif tipo == "comentario":
         st.markdown(paso["texto"])
     elif tipo == "tool":
-        st.markdown(f"**Tool invocada:** `{paso['nombre']}`")
+        st.markdown(f":material/build: **Tool invocada:** `{paso['nombre']}`")
         st.json(paso["args"], expanded=False)
     elif tipo == "resultado":
-        st.markdown(f"**Resultado de** `{paso['nombre']}`")
+        st.markdown(f":material/task_alt: **Resultado de** `{paso['nombre']}`")
         if paso["error"]:
             st.error(paso["texto"])
         else:
@@ -85,30 +134,58 @@ def mostrar_pasos(pasos: list[dict]) -> None:
 
 _estado_inicial()
 
-st.title("Revisor de contratos de alquiler")
-st.caption(
-    "Subí un contrato y consultá por sus cláusulas o por cómo se actualiza el alquiler. "
-    "Es una ayuda para entender el contrato: no reemplaza a un abogado."
+st.markdown(ESTILOS, unsafe_allow_html=True)
+st.markdown(
+    f'<div class="encabezado">{ICONO}<h1>Revisor de contratos de alquiler</h1></div>'
+    '<p class="aviso">Subí un contrato y consultá por sus cláusulas o por cómo se actualiza el alquiler. '
+    "Es una ayuda para entender el contrato: no reemplaza a un abogado.</p>",
+    unsafe_allow_html=True,
 )
+
+def _nombre_visible(ruta: str) -> str:
+    nombre = Path(ruta).name
+    return re.sub(r"^[0-9a-f]{8}_", "", nombre)
+
+
+def _nueva_conversacion() -> None:
+    st.session_state.thread_id = str(uuid.uuid4())
+    st.session_state.historial = []
+    st.session_state.adjunto = None
+    st.session_state.adjunto_anunciado = True
+    st.session_state.ultimo_archivo = None
+
 
 with st.sidebar:
     st.header("Contrato")
-    archivo = st.file_uploader("Contrato (PDF o TXT)", type=["pdf", "txt"])
+    archivo = st.file_uploader("Subir contrato (PDF o TXT)", type=["pdf", "txt"])
     if archivo is not None:
         clave = f"{archivo.name}:{archivo.size}"
         if clave != st.session_state.ultimo_archivo:
             st.session_state.adjunto = _guardar_adjunto(archivo)
             st.session_state.adjunto_anunciado = False
             st.session_state.ultimo_archivo = clave
-        st.success(f"Cargado: {archivo.name}")
 
-    if st.button("Nueva conversación"):
-        st.session_state.thread_id = str(uuid.uuid4())
-        st.session_state.historial = []
-        st.session_state.adjunto = None
-        st.session_state.adjunto_anunciado = True
-        st.session_state.ultimo_archivo = None
+    ejemplos = sorted(p.name for p in CONTRATOS_EJEMPLO.glob("*") if p.suffix in (".txt", ".pdf"))
+    if ejemplos:
+        elegido = st.selectbox("...o usar un contrato de ejemplo", ejemplos, index=None, placeholder="Elegir ejemplo")
+        if elegido and st.button("Cargar ejemplo", use_container_width=True):
+            st.session_state.adjunto = (CONTRATOS_EJEMPLO / elegido).relative_to(UPLOADS.parent.parent).as_posix()
+            st.session_state.adjunto_anunciado = False
+            st.session_state.ultimo_archivo = None
+            st.rerun()
+
+    if st.session_state.adjunto:
+        st.markdown(
+            f'<div class="contrato-activo"><small>Contrato activo</small>'
+            f"{_nombre_visible(st.session_state.adjunto)}</div>",
+            unsafe_allow_html=True,
+        )
+
+    st.divider()
+    if st.button("Nueva conversación", use_container_width=True):
+        _nueva_conversacion()
         st.rerun()
+    st.caption("Fuentes: CCyC, DNU 70/2023, Ley 24.240, INDEC y BCRA.")
 
 try:
     agente = _agente()
@@ -116,19 +193,32 @@ except ConfigError as exc:
     st.error(f"Configuración incompleta: {exc}")
     st.stop()
 
+AVATARES = {"user": ":material/person:", "assistant": ":material/home_work:"}
+
 # Historial
 for item in st.session_state.historial:
-    with st.chat_message(item["rol"]):
+    with st.chat_message(item["rol"], avatar=AVATARES[item["rol"]]):
         if item["rol"] == "assistant" and item.get("pasos"):
             with st.expander("Pasos del agente", expanded=False):
                 mostrar_pasos(item["pasos"])
         st.markdown(item["texto"])
 
 # Entrada del usuario
-consulta = st.chat_input("Escribí tu consulta...")
+zona_sugerencias = st.empty()
+if not st.session_state.historial:
+    with zona_sugerencias.container():
+        st.markdown("##### ¿Por dónde empezamos?")
+        columnas = st.columns(len(SUGERENCIAS))
+        for col, (titulo, texto) in zip(columnas, SUGERENCIAS):
+            if col.button(titulo, help=texto, use_container_width=True):
+                st.session_state.consulta_pendiente = texto
+                st.rerun()
+
+consulta = st.chat_input("Escribí tu consulta...") or st.session_state.pop("consulta_pendiente", None)
 if consulta:
+    zona_sugerencias.empty()
     st.session_state.historial.append({"rol": "user", "texto": consulta})
-    with st.chat_message("user"):
+    with st.chat_message("user", avatar=AVATARES["user"]):
         st.markdown(consulta)
 
     contenido = consulta
@@ -140,7 +230,7 @@ if consulta:
     pasos: list[dict] = []
     texto_final = ""
 
-    with st.chat_message("assistant"):
+    with st.chat_message("assistant", avatar=AVATARES["assistant"]):
         try:
             with st.status("El agente está trabajando...", expanded=True) as estado:
                 for evento in agente.stream(
@@ -155,11 +245,14 @@ if consulta:
                         for msg in mensajes:
                             nuevos, final = pasos_de_mensaje(msg)
                             for paso in nuevos:
+                                if paso["tipo"] == "tool":
+                                    estado.update(label=f"{ETAPAS.get(paso['nombre'], 'Trabajando')}...")
                                 mostrar_paso(paso)  # se ve mientras el agente trabaja
                             pasos.extend(nuevos)
                             if final:
                                 texto_final = final
-                estado.update(label="Listo", state="complete", expanded=False)
+                herramientas = sum(1 for p in pasos if p["tipo"] == "tool")
+                estado.update(label=f"Listo · {herramientas} {'tool usada' if herramientas == 1 else 'tools usadas'}", state="complete", expanded=False)
         except Exception as exc:  # noqa: BLE001 - se muestra al usuario
             texto_final = (
                 f"Falló la llamada al modelo: `{type(exc).__name__}`. "

@@ -9,7 +9,7 @@ chromadb
 langchain-chroma
 
 # UI
-streamlit
+streamlit>=1.40
 
 # Tools / utilidades
 pypdf

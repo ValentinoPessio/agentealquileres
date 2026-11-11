@@ -1,0 +1,14 @@
+# Tema sobrio, tipo papel de contrato: fondo crema, azul petróleo y un toque latón.
+[theme]
+base = "light"
+primaryColor = "#1F3A5F"
+backgroundColor = "#F7F5F0"
+secondaryBackgroundColor = "#ECE8DF"
+textColor = "#1F2933"
+font = "sans serif"
+
+[client]
+toolbarMode = "minimal"
+
+[browser]
+gatherUsageStats = false

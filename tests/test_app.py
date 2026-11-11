@@ -65,6 +65,6 @@ def test_app_nueva_conversacion_limpia_el_historial(monkeypatch):
     assert len(at.session_state["historial"]) == 2
     thread_anterior = at.session_state["thread_id"]
 
-    at.sidebar.button[0].click().run()
+    next(b for b in at.sidebar.button if b.label == "Nueva conversación").click().run()
     assert at.session_state["historial"] == []
     assert at.session_state["thread_id"] != thread_anterior
