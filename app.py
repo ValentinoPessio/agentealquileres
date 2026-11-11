@@ -91,6 +91,7 @@ def _estado_inicial() -> None:
     st.session_state.setdefault("adjunto", None)  # ruta relativa del contrato subido
     st.session_state.setdefault("adjunto_anunciado", True)
     st.session_state.setdefault("ultimo_archivo", None)
+    st.session_state.setdefault("uploader_n", 0)
 
 
 def _guardar_adjunto(archivo) -> str:
@@ -148,6 +149,7 @@ def _nombre_visible(ruta: str) -> str:
 
 
 def _nueva_conversacion() -> None:
+    st.session_state.uploader_n += 1  # vacía el cuadro de carga
     st.session_state.thread_id = str(uuid.uuid4())
     st.session_state.historial = []
     st.session_state.adjunto = None
@@ -155,9 +157,13 @@ def _nueva_conversacion() -> None:
     st.session_state.ultimo_archivo = None
 
 
-with st.sidebar:
-    st.header("Contrato")
-    archivo = st.file_uploader("Subir contrato (PDF o TXT)", type=["pdf", "txt"])
+def _selector_contrato() -> None:
+    """Carga de contrato: archivo propio o uno de los ejemplos."""
+    archivo = st.file_uploader(
+        "Arrastrá tu contrato o elegilo desde tu computadora (PDF o TXT)",
+        type=["pdf", "txt"],
+        key=f"uploader_{st.session_state.uploader_n}",
+    )
     if archivo is not None:
         clave = f"{archivo.name}:{archivo.size}"
         if clave != st.session_state.ultimo_archivo:
@@ -167,13 +173,18 @@ with st.sidebar:
 
     ejemplos = sorted(p.name for p in CONTRATOS_EJEMPLO.glob("*") if p.suffix in (".txt", ".pdf"))
     if ejemplos:
-        elegido = st.selectbox("...o usar un contrato de ejemplo", ejemplos, index=None, placeholder="Elegir ejemplo")
-        if elegido and st.button("Cargar ejemplo", use_container_width=True):
+        col_ej, col_btn = st.columns([3, 1], vertical_alignment="bottom")
+        elegido = col_ej.selectbox(
+            "...o probá con un contrato de ejemplo", ejemplos, index=None, placeholder="Elegir ejemplo"
+        )
+        if col_btn.button("Cargar", disabled=elegido is None, use_container_width=True):
             st.session_state.adjunto = (CONTRATOS_EJEMPLO / elegido).relative_to(UPLOADS.parent.parent).as_posix()
             st.session_state.adjunto_anunciado = False
             st.session_state.ultimo_archivo = None
             st.rerun()
 
+
+def _tarjeta_contrato() -> None:
     if st.session_state.adjunto:
         st.markdown(
             f'<div class="contrato-activo"><small>Contrato activo</small>'
@@ -181,11 +192,33 @@ with st.sidebar:
             unsafe_allow_html=True,
         )
 
-    st.divider()
+
+with st.sidebar:
+    st.header("Conversación")
+    _tarjeta_contrato()
     if st.button("Nueva conversación", use_container_width=True):
         _nueva_conversacion()
         st.rerun()
     st.caption("Fuentes: CCyC, DNU 70/2023, Ley 24.240, INDEC y BCRA.")
+
+# Contrato: caja central antes de empezar; después, un panel plegable.
+if st.session_state.historial:
+    titulo = (
+        f"Contrato: {_nombre_visible(st.session_state.adjunto)}"
+        if st.session_state.adjunto
+        else "Cargar un contrato"
+    )
+    with st.expander(titulo, expanded=False):
+        _selector_contrato()
+zona_contrato = st.empty()
+if not st.session_state.historial:
+    with zona_contrato.container():
+        _, centro, _ = st.columns([1, 6, 1])
+        with centro:
+            with st.container(border=True):
+                st.markdown("#### Cargá tu contrato")
+                _selector_contrato()
+                _tarjeta_contrato()
 
 try:
     agente = _agente()
@@ -207,7 +240,7 @@ for item in st.session_state.historial:
 zona_sugerencias = st.empty()
 if not st.session_state.historial:
     with zona_sugerencias.container():
-        st.markdown("##### ¿Por dónde empezamos?")
+        st.markdown("##### O empezá con una consulta rápida")
         columnas = st.columns(len(SUGERENCIAS))
         for col, (titulo, texto) in zip(columnas, SUGERENCIAS):
             if col.button(titulo, help=texto, use_container_width=True):
@@ -217,6 +250,7 @@ if not st.session_state.historial:
 consulta = st.chat_input("Escribí tu consulta...") or st.session_state.pop("consulta_pendiente", None)
 if consulta:
     zona_sugerencias.empty()
+    zona_contrato.empty()
     st.session_state.historial.append({"rol": "user", "texto": consulta})
     with st.chat_message("user", avatar=AVATARES["user"]):
         st.markdown(consulta)

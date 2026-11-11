@@ -68,3 +68,27 @@ def test_app_nueva_conversacion_limpia_el_historial(monkeypatch):
     next(b for b in at.sidebar.button if b.label == "Nueva conversación").click().run()
     assert at.session_state["historial"] == []
     assert at.session_state["thread_id"] != thread_anterior
+
+
+def test_app_carga_un_contrato_de_ejemplo_y_lo_anuncia_en_la_primera_consulta(monkeypatch):
+    _parchear_agente(monkeypatch, [AIMessage(content=[{"type": "text", "text": "Leído."}])])
+    at = AppTest.from_file(APP, default_timeout=30).run()
+    at.selectbox[0].select("01_ipc_trimestral_mendoza.txt")
+    at.run()
+    next(b for b in at.button if b.label == "Cargar").click().run()
+    assert at.session_state["adjunto"] == "data/contratos_ejemplo/01_ipc_trimestral_mendoza.txt"
+
+    at.chat_input[0].set_value("Revisalo").run()
+    assert not at.exception
+    assert at.session_state["adjunto_anunciado"] is True
+
+
+def test_app_nueva_conversacion_descarta_el_contrato_cargado(monkeypatch):
+    _parchear_agente(monkeypatch, [AIMessage(content=[{"type": "text", "text": "Hola."}])])
+    at = AppTest.from_file(APP, default_timeout=30).run()
+    at.selectbox[0].select("02_icl_semestral_rosario.txt")
+    at.run()
+    next(b for b in at.button if b.label == "Cargar").click().run()
+    assert at.session_state["adjunto"]
+    next(b for b in at.sidebar.button if b.label == "Nueva conversación").click().run()
+    assert at.session_state["adjunto"] is None
