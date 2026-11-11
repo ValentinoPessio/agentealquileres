@@ -303,7 +303,9 @@ def consultar_indices(indice: str, desde: str | None = None, hasta: str | None =
             "indice": indice,
             "fuente": indices.fuente_real(indice),
             "ultimo_mes_disponible": ultimo,
-            "variaciones_mensuales_pct": [{"mes": m, "pct": round(v, 4)} for m, v in sorted(recorte.items())[-36:]],
+            "variaciones_mensuales_pct": [
+                {"mes": m, "pct": round(v, 4)} for m, v in sorted(recorte.items())[-(36 if desde else 12):]
+            ],
             "acumulado_pct": round((calculos.factor_acumulado(recorte.values()) - 1) * 100, 2),
         }
     except (ValueError, indices.DatosNoDisponibles) as exc:
