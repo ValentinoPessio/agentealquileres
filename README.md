@@ -58,7 +58,36 @@ python -m rag.ingest
 ```
 
 Crea `chroma_db/` (ignorado por git) con un fragmento por artículo. Hay que correrlo una vez
-antes de usar la app.
+antes de usar la app (y de nuevo si cambia el corpus o la forma de fragmentar).
+
+**Cómo se fragmenta y por qué.** Un fragmento = un artículo (mediana ≈ 370 caracteres, máximo
+≈ 2.300): es la unidad que se cita, así que no se parte. Cada fragmento se indexa con
+"norma - Art. N" adelante. No se indexan las reseñas vacías "(Artículo derogado por…)" (4
+fragmentos de ~80 caracteres que no dicen nada y compiten por un lugar en los resultados); la
+derogación igual queda en el DNU 70/2023, arts. 258, 259 y 263.
+
+**Menos pedidos a la API.** `buscar_normativa` recibe *varios temas en una sola llamada*
+(`consultas=[...]`) en vez de una llamada del modelo por tema: cada llamada del modelo gasta
+cuota del LLM. Los embeddings de consulta se cachean y los 429 se reintentan con espera creciente
+(2, 4, 8 s; `rag/reintentos.py`). Si igual se agota la cuota, la tool devuelve
+`tipo: "limite_de_cuota"` y el agente avisa que hay que esperar, en vez de decir "no hay norma".
+
+Para medir la recuperación con embeddings reales: `python -m scripts.evaluar_rag` (hit@4 sobre
+10 preguntas con el artículo esperado).
+
+## Conversaciones persistentes
+
+Las conversaciones se guardan en SQLite en disco local (`data/conversaciones.sqlite`, ignorado
+por git; se cambia con `CONVERSACIONES_DB`). El checkpointer es `SqliteSaver` de LangGraph, así
+que la memoria del agente sobrevive al reinicio de la app, y la barra lateral lista las
+conversaciones anteriores para retomarlas (`conversaciones.py`).
+
+## Ruta del contrato
+
+El modelo **no elige ni escribe rutas**: `leer_contrato` no tiene argumentos. La app guarda el
+archivo que sube el usuario y pasa su ruta en el contexto de ejecución (`context_schema` de
+`create_agent`, `ToolRuntime` en la tool), que el modelo no ve. Además la tool solo lee dentro
+de las carpetas permitidas.
 
 ## Series de IPC, ICL y REM
 
@@ -100,7 +129,7 @@ Los tests no llaman a Gemini: el agente se prueba con un modelo simulado.
 ## Estructura
 
 ```
-app.py              UI en Streamlit (streaming de pasos, memoria por conversación)
+app.py              UI en Streamlit (streaming de pasos, conversaciones persistentes)
 agente.py           create_agent + prompt de sistema + checkpointer
 flujo.py            convierte los mensajes del agente en pasos para la UI
 model.py            adaptador de proveedor LLM
@@ -108,7 +137,8 @@ tools.py            tools del agente (leer_contrato, consultar_indices, calcular
 indices.py          lectura de las series oficiales guardadas (IPC, ICL, REM)
 calculos.py         lógica pura de cálculo (cronograma, proyección)
 contratos.py        lectura de PDF/TXT y división en cláusulas
-rag/                ingesta (rag/ingest.py) y búsqueda (rag/buscar.py) de la normativa
+rag/                ingesta, búsqueda multi-tema y reintentos 429 de la normativa
+conversaciones.py   conversaciones en SQLite (checkpointer + lista de conversaciones)
 data/normativa/     textos legales para el RAG
 data/contratos_ejemplo/   contratos ficticios para pruebas
 scripts/            utilidades

@@ -1,6 +1,7 @@
 # Agente
 langchain
 langgraph
+langgraph-checkpoint-sqlite   # conversaciones persistidas en SQLite (disco local)
 langchain-google-genai   # Gemini (chat + embeddings)
 # langchain-openai       # solo si usan LM Studio como proveedor local (LLM_PROVIDER=lmstudio)
 

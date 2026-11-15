@@ -226,3 +226,6 @@ outputs/
 # Páginas fuente descargadas de InfoLEG (solo locales, pesan mucho)
 data/normativa/fuentes/
 data/indices/fuentes/
+
+# Conversaciones persistidas (SQLite local)
+data/conversaciones.sqlite*

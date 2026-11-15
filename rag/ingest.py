@@ -4,6 +4,7 @@ Uso:  python -m rag.ingest            (reconstruye el índice desde data/normati
 
 Cada archivo .md tiene un encabezado con "Norma:" y "Fuente:" y luego bloques
 "## Art. N" con el texto literal. Un artículo = un fragmento, para poder citarlo.
+Las reseñas vacías de artículos derogados no se indexan (ver `es_resena_derogada`).
 """
 
 from __future__ import annotations
@@ -11,6 +12,8 @@ from __future__ import annotations
 import re
 import shutil
 from pathlib import Path
+
+from rag.reintentos import con_reintentos
 
 BASE = Path(__file__).resolve().parent.parent
 CARPETA_NORMATIVA = BASE / "data" / "normativa"
@@ -60,10 +63,24 @@ def dividir_articulos(md: str, archivo: str = "") -> list[dict]:
     return fragmentos
 
 
+RE_SOLO_DEROGADO = re.compile(r"^ART[IÍ]CULO\s+[\w ]+?\.-\s*\(Art[ií]culos? derogados?[^)]*\)\.?$", re.IGNORECASE)
+
+
+def es_resena_derogada(fragmento: dict) -> bool:
+    """True si el artículo es solo la nota "(Artículo derogado por ...)", sin contenido.
+
+    Son fragmentos de ~80 caracteres que no dicen nada y igual compiten por un lugar en los
+    resultados de la búsqueda. La derogación igual queda registrada en el DNU 70/2023
+    (arts. 258, 259 y 263), que sí se indexa.
+    """
+    return bool(RE_SOLO_DEROGADO.match(" ".join(fragmento["texto"].split())))
+
+
 def cargar_corpus(carpeta: Path = CARPETA_NORMATIVA) -> list[dict]:
     fragmentos: list[dict] = []
     for ruta in sorted(carpeta.glob("*.md")):
-        fragmentos.extend(dividir_articulos(ruta.read_text(encoding="utf-8"), ruta.name))
+        todos = dividir_articulos(ruta.read_text(encoding="utf-8"), ruta.name)
+        fragmentos.extend(f for f in todos if not es_resena_derogada(f))
     return fragmentos
 
 
@@ -90,10 +107,12 @@ def construir_indice(embeddings=None, carpeta_indice: Path = CARPETA_INDICE, car
     # Se indexa por tandas chicas para no pasarse del límite de la API gratuita.
     for i in range(0, len(fragmentos), 20):
         lote = fragmentos[i : i + 20]
-        base.add_texts(
-            texts=[texto_para_embedding(f) for f in lote],
-            metadatas=[f["metadata"] | {"texto_literal": f["texto"]} for f in lote],
-            ids=[f"{f['metadata']['archivo']}::{f['metadata']['articulo']}" for f in lote],
+        con_reintentos(
+            lambda lote=lote: base.add_texts(
+                texts=[texto_para_embedding(f) for f in lote],
+                metadatas=[f["metadata"] | {"texto_literal": f["texto"]} for f in lote],
+                ids=[f"{f['metadata']['archivo']}::{f['metadata']['articulo']}" for f in lote],
+            )
         )
     return len(fragmentos)
 

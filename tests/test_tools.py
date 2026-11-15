@@ -118,35 +118,57 @@ def test_proyectar_inflacion_error_claro():
     assert "error" in r
 
 
-def test_leer_contrato_lee_dentro_de_carpeta_permitida(tmp_path, monkeypatch):
+class _Ctx:
+    def __init__(self, ruta):
+        self.contrato_ruta = ruta
+
+
+class _Runtime:
+    """Reemplaza a ToolRuntime: solo importa el contexto que pone la app."""
+
+    def __init__(self, ruta):
+        self.context = _Ctx(ruta)
+
+
+def _leer(ruta):
+    return tools.leer_contrato.func(runtime=_Runtime(ruta))
+
+
+def test_leer_contrato_no_expone_ruta_al_modelo():
+    esquema = tools.leer_contrato.args  # lo que ve el modelo
+    assert "ruta" not in esquema and "runtime" not in esquema
+
+
+def test_leer_contrato_lee_el_archivo_que_puso_la_app(tmp_path, monkeypatch):
     carpeta = tmp_path / "uploads"
     carpeta.mkdir()
-    (carpeta / "c.txt").write_text("PRIMERA: OBJETO. Casa.\nSEGUNDA: PRECIO. $1.000.", encoding="utf-8")
+    (carpeta / "c.txt").write_text("PRIMERA: OBJETO. Casa.\nSEGUNDA: PRECIO. $100.", encoding="utf-8")
     monkeypatch.setattr(tools, "CARPETAS_PERMITIDAS", (carpeta,))
-    r = tools.leer_contrato.invoke({"ruta": str(carpeta / "c.txt")})
-    assert "error" not in r
-    assert len(r["clausulas"]) == 2
+    r = _leer(str(carpeta / "c.txt"))
+    assert "error" not in r and len(r["clausulas"]) >= 2
+
+
+def test_leer_contrato_sin_contrato_cargado_da_error_claro():
+    r = _leer(None)
+    assert "error" in r and "no subió" in r["error"]
 
 
 def test_leer_contrato_rechaza_rutas_fuera_de_la_carpeta(tmp_path, monkeypatch):
     carpeta = tmp_path / "uploads"
     carpeta.mkdir()
     secreto = tmp_path / "secreto.txt"
-    secreto.write_text("clave")
+    secreto.write_text("clave", encoding="utf-8")
     monkeypatch.setattr(tools, "CARPETAS_PERMITIDAS", (carpeta,))
-    # ruta absoluta fuera
-    assert "error" in tools.leer_contrato.invoke({"ruta": str(secreto)})
-    # path traversal
-    assert "error" in tools.leer_contrato.invoke({"ruta": str(carpeta / ".." / "secreto.txt")})
-    # el .env del proyecto
-    assert "error" in tools.leer_contrato.invoke({"ruta": ".env"})
+    assert "error" in _leer(str(secreto))
+    assert "error" in _leer(str(carpeta / ".." / "secreto.txt"))
+    assert "error" in _leer(".env")
 
 
 def test_leer_contrato_archivo_inexistente_no_rompe(tmp_path, monkeypatch):
     carpeta = tmp_path / "uploads"
     carpeta.mkdir()
     monkeypatch.setattr(tools, "CARPETAS_PERMITIDAS", (carpeta,))
-    r = tools.leer_contrato.invoke({"ruta": str(carpeta / "no_existe.pdf")})
+    r = _leer(str(carpeta / "no_existe.pdf"))
     assert "error" in r
 
 

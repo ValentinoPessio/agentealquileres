@@ -10,11 +10,12 @@ import uuid
 from pathlib import Path
 
 import streamlit as st
-from langgraph.checkpoint.memory import InMemorySaver
 
 from agente import crear_agente
+from conversaciones import Almacen, historial_desde_mensajes
 from flujo import pasos_de_mensaje
 from model import ConfigError
+from tools import ContextoEjecucion
 
 UPLOADS = Path(__file__).resolve().parent / "outputs" / "uploads"
 
@@ -53,7 +54,9 @@ h1, h2, h3, .encabezado h1 { font-family: 'Lora', Georgia, 'Times New Roman', se
 .contrato-activo { background:#fff; border:1px solid var(--borde); border-left:4px solid var(--laton); border-radius:6px; padding:.55rem .75rem; font-size:.9rem; }
 .contrato-activo small { color:#5B6670; display:block; }
 [data-testid="stChatMessage"] { background:#fff; border:1px solid var(--borde); border-radius:8px; }
-[data-testid="stMarkdownContainer"] table { border-collapse:collapse; width:100%; font-size:.92rem; }
+/* La tabla del cronograma tiene muchas columnas: se desplaza hacia los costados en vez de cortarse. */
+[data-testid="stMarkdownContainer"] table { display:block; overflow-x:auto; max-width:100%; border-collapse:collapse; font-size:.92rem; -webkit-overflow-scrolling:touch; }
+[data-testid="stMarkdownContainer"] th, [data-testid="stMarkdownContainer"] td { white-space:nowrap; }
 [data-testid="stMarkdownContainer"] th { background:var(--petroleo); color:#fff; padding:.45rem .6rem; border:1px solid var(--petroleo); }
 [data-testid="stMarkdownContainer"] td { padding:.4rem .6rem; border:1px solid var(--borde); }
 [data-testid="stMarkdownContainer"] tbody tr:nth-child(even) td { background:#F4F1EA; }
@@ -75,14 +78,14 @@ ICONO = (
 # ---------------------------------------------------------------------------
 
 @st.cache_resource
-def _checkpointer() -> InMemorySaver:
-    # La memoria vive mientras corra el servidor; cada conversación usa su thread_id.
-    return InMemorySaver()
+def _almacen() -> Almacen:
+    # Conversaciones en SQLite, en disco local: sobreviven al reinicio de la app.
+    return Almacen()
 
 
 @st.cache_resource
 def _agente():
-    return crear_agente(checkpointer=_checkpointer())
+    return crear_agente(checkpointer=_almacen().checkpointer)
 
 
 def _estado_inicial() -> None:
@@ -143,9 +146,27 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+try:
+    agente = _agente()
+except ConfigError as exc:
+    st.error(f"Configuración incompleta: {exc}")
+    st.stop()
+
 def _nombre_visible(ruta: str) -> str:
     nombre = Path(ruta).name
     return re.sub(r"^[0-9a-f]{8}_", "", nombre)
+
+
+def _abrir_conversacion(thread_id: str) -> None:
+    """Retoma una conversación guardada: mensajes, pasos y contrato."""
+    datos = _almacen().obtener(thread_id) or {}
+    estado = agente.get_state({"configurable": {"thread_id": thread_id}})
+    st.session_state.uploader_n += 1
+    st.session_state.thread_id = thread_id
+    st.session_state.historial = historial_desde_mensajes(estado.values.get("messages", []))
+    st.session_state.adjunto = datos.get("contrato_ruta")
+    st.session_state.adjunto_anunciado = True  # el contrato ya está en la conversación
+    st.session_state.ultimo_archivo = None
 
 
 def _nueva_conversacion() -> None:
@@ -199,6 +220,14 @@ with st.sidebar:
     if st.button("Nueva conversación", use_container_width=True):
         _nueva_conversacion()
         st.rerun()
+    anteriores = [c for c in _almacen().listar() if c["thread_id"] != st.session_state.thread_id]
+    if anteriores:
+        st.markdown("##### Conversaciones anteriores")
+        for c in anteriores:
+            if st.button(c["titulo"], key=f"conv_{c['thread_id']}", use_container_width=True,
+                         help=f"Última actividad: {c['actualizada'].replace('T', ' ')}"):
+                _abrir_conversacion(c["thread_id"])
+                st.rerun()
     st.caption("Fuentes: CCyC, DNU 70/2023, Ley 24.240, INDEC y BCRA.")
 
 # Contrato: caja central antes de empezar; después, un panel plegable.
@@ -219,12 +248,6 @@ if not st.session_state.historial:
                 st.markdown("#### Cargá tu contrato")
                 _selector_contrato()
                 _tarjeta_contrato()
-
-try:
-    agente = _agente()
-except ConfigError as exc:
-    st.error(f"Configuración incompleta: {exc}")
-    st.stop()
 
 AVATARES = {"user": ":material/person:", "assistant": ":material/home_work:"}
 
@@ -257,10 +280,12 @@ if consulta:
 
     contenido = consulta
     if st.session_state.adjunto and not st.session_state.adjunto_anunciado:
-        contenido = f"[Contrato adjunto: {st.session_state.adjunto}]\n\n{consulta}"
+        # Solo el nombre: la ruta no pasa por el modelo, la pone la app en el contexto.
+        contenido = f"[Contrato adjunto: {_nombre_visible(st.session_state.adjunto)}]\n\n{consulta}"
         st.session_state.adjunto_anunciado = True
 
     config = {"configurable": {"thread_id": st.session_state.thread_id}}
+    _almacen().registrar(st.session_state.thread_id, consulta, st.session_state.adjunto)
     pasos: list[dict] = []
     texto_final = ""
 
@@ -270,6 +295,7 @@ if consulta:
                 for evento in agente.stream(
                     {"messages": [{"role": "user", "content": contenido}]},
                     config,
+                    context=ContextoEjecucion(contrato_ruta=st.session_state.adjunto),
                     stream_mode="updates",
                 ):
                     for salida in evento.values():

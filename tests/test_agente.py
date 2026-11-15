@@ -5,6 +5,7 @@ from langchain_core.messages import AIMessage
 from langgraph.checkpoint.memory import InMemorySaver
 
 import tools
+from tools import ContextoEjecucion
 from agente import crear_agente, system_prompt
 from flujo import pasos_de_mensaje
 
@@ -36,7 +37,7 @@ def test_agente_ejecuta_tools_en_orden_y_recuerda_turnos(tmp_path, monkeypatch):
     guion = iter(
         [
             # turno 1
-            _llamada("leer_contrato", {"ruta": str(contrato)}, "a1"),
+            _llamada("leer_contrato", {}, "a1"),
             _llamada(
                 "calcular_cronograma",
                 {
@@ -62,6 +63,7 @@ def test_agente_ejecuta_tools_en_orden_y_recuerda_turnos(tmp_path, monkeypatch):
     for evento in agente.stream(
         {"messages": [{"role": "user", "content": f"[Contrato adjunto: {contrato}]\n\nRevisalo."}]},
         config,
+        context=ContextoEjecucion(contrato_ruta=str(contrato)),
         stream_mode="updates",
     ):
         for salida in evento.values():
@@ -108,7 +110,7 @@ def test_system_prompt_separa_lo_que_dice_el_articulo_de_la_apreciacion_propia()
 def test_system_prompt_exige_consultar_la_normativa_antes_de_analizar_clausulas():
     p = system_prompt()
     assert "Es obligatorio llamar a `buscar_normativa` antes de analizar las cláusulas" in p
-    assert "una llamada por cada tema problemático" in p
+    assert "UNA sola llamada con todos los temas" in p
     assert "falló la consulta de normativa" in p
 
 

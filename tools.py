@@ -8,10 +8,11 @@ explicarle el problema al usuario o corregir los argumentos sin romper el flujo.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
-from langchain.tools import tool
+from langchain.tools import ToolRuntime, tool
 from pydantic import BaseModel, Field
 
 import calculos
@@ -40,11 +41,15 @@ class VariacionMensual(BaseModel):
 # leer_contrato
 # ---------------------------------------------------------------------------
 
-class LeerContratoArgs(BaseModel):
-    ruta: str = Field(
-        description="Ruta del contrato tal como figura en el mensaje del usuario "
-        "(por ejemplo 'outputs/uploads/contrato.pdf')."
-    )
+@dataclass
+class ContextoEjecucion:
+    """Datos que pone la app en cada ejecución y que el modelo no ve ni modifica.
+
+    `contrato_ruta` es la ruta del archivo que el usuario subió: la decide la UI, no el
+    modelo. Así el modelo no puede pedir leer otro archivo.
+    """
+
+    contrato_ruta: str | None = None
 
 
 def _ruta_permitida(ruta: str) -> Path | None:
@@ -61,12 +66,22 @@ def _ruta_permitida(ruta: str) -> Path | None:
     return None
 
 
-@tool(args_schema=LeerContratoArgs)
-def leer_contrato(ruta: str) -> dict:
-    """Lee un contrato de alquiler (PDF o TXT) que el usuario ya subió y lo divide
-    en cláusulas numeradas. Devuelve el archivo, la cantidad de páginas, las
-    cláusulas (orden, título y texto) y advertencias si la división fue aproximada.
-    Usala una sola vez por contrato, antes de analizarlo."""
+@tool
+def leer_contrato(runtime: ToolRuntime[ContextoEjecucion]) -> dict:
+    """Lee el contrato de alquiler (PDF o TXT) que el usuario subió a la app y lo divide
+    en cláusulas numeradas. No recibe argumentos: la app ya sabe qué archivo es.
+    Devuelve el archivo, la cantidad de páginas, las cláusulas (orden, título y texto) y
+    advertencias si la división fue aproximada. Usala una sola vez por contrato, antes de
+    analizarlo."""
+    ruta = getattr(runtime.context, "contrato_ruta", None)
+    if not ruta:
+        return {"error": "El usuario no subió ningún contrato en esta conversación."}
+    return _leer(ruta)
+
+
+def _leer(ruta: str) -> dict:
+    """Lectura segura de la ruta que entrega la app (se mantiene la lista de carpetas
+    permitidas como segunda barrera)."""
     permitida = _ruta_permitida(ruta)
     if permitida is None:
         return {"error": "Ruta no permitida: solo se pueden leer contratos subidos por el usuario."}
@@ -319,21 +334,31 @@ def consultar_indices(indice: str, desde: str | None = None, hasta: str | None =
 # ---------------------------------------------------------------------------
 
 class BuscarNormativaArgs(BaseModel):
-    consulta: str = Field(
-        description="Tema legal a buscar, en lenguaje natural. Ejemplo: "
-        "'rescisión anticipada del inquilino y penalidad' o 'depósito en garantía'."
+    consultas: list[str] = Field(
+        min_length=1,
+        max_length=6,
+        description="Temas legales a buscar, TODOS en una sola llamada, en lenguaje natural. Ejemplo: "
+        "['rescisión anticipada del inquilino y penalidad', 'depósito en garantía', 'intereses punitorios por mora'].",
     )
-    cantidad: int = Field(default=4, ge=1, le=8, description="Cantidad de artículos a devolver.")
+    cantidad: int = Field(default=3, ge=1, le=6, description="Artículos a devolver por cada tema.")
 
 
 @tool(args_schema=BuscarNormativaArgs)
-def buscar_normativa(consulta: str, cantidad: int = 4) -> dict:
+def buscar_normativa(consultas: list[str], cantidad: int = 3) -> dict:
     """Busca en la normativa argentina de alquileres (Código Civil y Comercial, DNU 70/2023,
-    Ley 24.240) los artículos relacionados con la consulta y los devuelve con su cita."""
-    from rag.buscar import buscar_normativa as buscar
+    Ley 24.240) los artículos de varios temas a la vez y los devuelve con su cita. Pasá todos
+    los temas del contrato en una sola llamada: no la repitas por cada cláusula."""
+    from rag import buscar
+    from rag.reintentos import LimiteDeCuota
 
     try:
-        articulos = buscar(consulta, k=cantidad)
+        articulos = buscar.buscar_varias(consultas, k=cantidad)
+    except LimiteDeCuota as e:
+        return {
+            "error": f"{e} Es un límite de cuota, no un problema de la normativa: "
+            "esperá un minuto y volvé a intentar. No repitas la llamada de inmediato.",
+            "tipo": "limite_de_cuota",
+        }
     except Exception as e:  # noqa: BLE001 - el agente debe poder explicar el problema
         return {"error": f"No se pudo consultar la normativa: {e}"}
     if not articulos:
@@ -345,6 +370,7 @@ def buscar_normativa(consulta: str, cantidad: int = 4) -> dict:
                 "estado": a["estado"],
                 "texto": a["texto"],
                 "fuente": a["fuente"],
+                "encontrado_por": a["consulta"],
             }
             for a in articulos
         ]

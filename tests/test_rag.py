@@ -58,7 +58,8 @@ def test_corpus_real_tiene_los_articulos_clave():
     claves = {(x["metadata"]["archivo"], x["metadata"]["articulo"]) for x in f}
     assert ("ccyc_locacion.md", "1221") in claves
     assert ("dnu_70_2023_alquileres.md", "249") in claves
-    assert len(f) == 70
+    assert len(f) == 66  # 70 artículos menos 4 reseñas vacías de derogados
+    assert ("ccyc_locacion.md", "1202") not in claves
 
 
 @pytest.fixture
@@ -68,7 +69,7 @@ def indice(tmp_path):
     (normativa / "prueba.md").write_text(MD, encoding="utf-8")
     destino = tmp_path / "indice"
     emb = EmbeddingsFalsos()
-    assert ingest.construir_indice(emb, destino, normativa) == 3
+    assert ingest.construir_indice(emb, destino, normativa) == 2
     return emb, destino
 
 
@@ -84,22 +85,94 @@ def test_buscar_sin_indice_da_error_claro(tmp_path):
         buscar.buscar_normativa("algo", carpeta_indice=tmp_path / "no_existe")
 
 
+def test_resenas_derogadas_no_se_indexan():
+    f = ingest.dividir_articulos(MD, "prueba.md")
+    assert [ingest.es_resena_derogada(x) for x in f] == [False, False, True]
+
+
+def test_buscar_varias_junta_temas_sin_repetir(indice):
+    emb, destino = indice
+    r = buscar.buscar_varias(
+        ["deposito en garantia", "rescision con preaviso", "deposito"], k=1, embeddings=emb, carpeta_indice=destino
+    )
+    assert [x["articulo"] for x in r] == ["10", "11"]  # el 3.º tema repite el art. 10
+    assert r[0]["consulta"] == "deposito en garantia"
+
+
+def test_consulta_repetida_no_vuelve_a_pedir_embedding(indice):
+    emb, destino = indice
+    llamadas = []
+    original = emb.embed_query
+    emb.embed_query = lambda t: (llamadas.append(t), original(t))[1]
+    buscar._cache_consultas.clear()
+    buscar.buscar_varias(["deposito"], embeddings=emb, carpeta_indice=destino)
+    buscar.buscar_varias(["deposito"], embeddings=emb, carpeta_indice=destino)
+    assert llamadas == ["deposito"]
+
+
+def test_reintentos_ante_429_y_luego_funciona():
+    from rag.reintentos import con_reintentos
+
+    estado = {"n": 0}
+    esperas = []
+
+    def f():
+        estado["n"] += 1
+        if estado["n"] < 3:
+            raise RuntimeError("429 RESOURCE_EXHAUSTED")
+        return "ok"
+
+    assert con_reintentos(f, dormir=esperas.append) == "ok"
+    assert esperas == [2.0, 4.0]
+
+
+def test_reintentos_agotados_y_errores_no_429():
+    from rag.reintentos import LimiteDeCuota, con_reintentos
+
+    def siempre_429():
+        raise RuntimeError("429 RESOURCE_EXHAUSTED")
+
+    with pytest.raises(LimiteDeCuota):
+        con_reintentos(siempre_429, intentos=2, dormir=lambda s: None)
+    veces = []
+
+    def otro():
+        veces.append(1)
+        raise ValueError("otro error")
+
+    with pytest.raises(ValueError):
+        con_reintentos(otro, dormir=lambda s: None)
+    assert len(veces) == 1  # un error que no es 429 no se reintenta
+
+
 def test_tool_buscar_normativa_no_rompe_si_falla(monkeypatch):
     def falla(*a, **k):
         raise FileNotFoundError("sin índice")
 
-    monkeypatch.setattr(buscar, "buscar_normativa", falla)
-    r = tools.buscar_normativa.invoke({"consulta": "rescisión"})
+    monkeypatch.setattr(buscar, "buscar_varias", falla)
+    r = tools.buscar_normativa.invoke({"consultas": ["rescisión"]})
     assert "error" in r and "sin índice" in r["error"]
+
+
+def test_tool_buscar_normativa_distingue_limite_de_cuota(monkeypatch):
+    from rag.reintentos import LimiteDeCuota
+
+    def cuota(*a, **k):
+        raise LimiteDeCuota("Se alcanzó el límite (429).")
+
+    monkeypatch.setattr(buscar, "buscar_varias", cuota)
+    r = tools.buscar_normativa.invoke({"consultas": ["rescisión"]})
+    assert r["tipo"] == "limite_de_cuota" and "esperá" in r["error"]
 
 
 def test_tool_buscar_normativa_formatea_citas(monkeypatch):
     monkeypatch.setattr(
         buscar,
-        "buscar_normativa",
-        lambda c, k=4, **kw: [
-            {"norma": "CCyC", "articulo": "1221", "fuente": "u", "estado": "vigente", "texto": "t"}
+        "buscar_varias",
+        lambda cs, k=3, **kw: [
+            {"norma": "CCyC", "articulo": "1221", "fuente": "u", "estado": "vigente", "texto": "t", "consulta": cs[0]}
         ],
     )
-    r = tools.buscar_normativa.invoke({"consulta": "rescisión"})
+    r = tools.buscar_normativa.invoke({"consultas": ["rescisión", "depósito"]})
     assert r["articulos"][0]["cita"] == "CCyC, art. 1221"
+    assert r["articulos"][0]["encontrado_por"] == "rescisión"
