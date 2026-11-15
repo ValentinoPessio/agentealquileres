@@ -105,6 +105,13 @@ def test_system_prompt_separa_lo_que_dice_el_articulo_de_la_apreciacion_propia()
     assert "solo lo que dice su texto recuperado" in p and "apreciación tuya" in p
 
 
+def test_system_prompt_exige_consultar_la_normativa_antes_de_analizar_clausulas():
+    p = system_prompt()
+    assert "Es obligatorio llamar a `buscar_normativa` antes de analizar las cláusulas" in p
+    assert "una llamada por cada tema problemático" in p
+    assert "falló la consulta de normativa" in p
+
+
 def test_system_prompt_incluye_fecha_y_seguridad():
     from datetime import date
 
