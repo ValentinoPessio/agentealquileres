@@ -13,6 +13,7 @@ streamlit>=1.40
 
 # Tools / utilidades
 pypdf
+openpyxl           # lo usan scripts/generar_indices.py y sus tests (Excel del REM)
 pandas
 requests
 python-dotenv
