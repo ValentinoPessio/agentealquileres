@@ -176,3 +176,17 @@ def test_tool_buscar_normativa_formatea_citas(monkeypatch):
     r = tools.buscar_normativa.invoke({"consultas": ["rescisión", "depósito"]})
     assert r["articulos"][0]["cita"] == "CCyC, art. 1221"
     assert r["articulos"][0]["encontrado_por"] == "rescisión"
+
+
+def test_tool_buscar_normativa_acepta_siete_temas_en_una_llamada(monkeypatch):
+    """Antes el esquema aceptaba 6 y la llamada con 7 temas fallaba (y gastaba un pedido al modelo)."""
+    recibidos = {}
+
+    def falso(cs, k=3, **kw):
+        recibidos["n"] = len(cs)
+        return []
+
+    monkeypatch.setattr(buscar, "buscar_varias", falso)
+    temas = [f"tema {i}" for i in range(7)]
+    r = tools.buscar_normativa.invoke({"consultas": temas})
+    assert "error" not in r and recibidos["n"] == 7

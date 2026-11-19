@@ -336,8 +336,8 @@ def consultar_indices(indice: str, desde: str | None = None, hasta: str | None =
 class BuscarNormativaArgs(BaseModel):
     consultas: list[str] = Field(
         min_length=1,
-        max_length=6,
-        description="Temas legales a buscar, TODOS en una sola llamada, en lenguaje natural. Ejemplo: "
+        max_length=10,
+        description="Temas legales a buscar (hasta 10), TODOS en una sola llamada, en lenguaje natural. Ejemplo: "
         "['rescisión anticipada del inquilino y penalidad', 'depósito en garantía', 'intereses punitorios por mora'].",
     )
     cantidad: int = Field(default=3, ge=1, le=6, description="Artículos a devolver por cada tema.")
