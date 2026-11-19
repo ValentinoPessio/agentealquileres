@@ -93,5 +93,16 @@ def test_contratos_de_ejemplo_se_leen_y_dividen_en_clausulas():
     assert len(archivos) >= 4
     for archivo in archivos:
         r = leer_contrato(str(archivo))
-        assert len(r["clausulas"]) == 10, archivo.name  # encabezado + 9 cláusulas
+        esperadas = 12 if archivo.name.startswith("05_") else 10  # encabezado + 9 u 11 cláusulas
+        assert len(r["clausulas"]) == esperadas, archivo.name
         assert not r["advertencias"], archivo.name
+
+
+def test_reconoce_undecima_y_duodecima():
+    texto = "CLÁUSULA DÉCIMA: A.\nCLÁUSULA UNDÉCIMA: B.\nCLÁUSULA DUODÉCIMA: C.\nCLÁUSULA DÉCIMA TERCERA: D."
+    import tempfile, os
+    with tempfile.TemporaryDirectory() as d:
+        ruta = os.path.join(d, "c.txt")
+        open(ruta, "w", encoding="utf-8").write(texto)
+        r = leer_contrato(ruta)
+    assert len(r["clausulas"]) == 4

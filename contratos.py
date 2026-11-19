@@ -14,7 +14,7 @@ TAMANO_BLOQUE_FALLBACK = 1500  # caracteres, si no se detectan cláusulas
 
 _UNIDAD = r"(?:PRIMER[AO]|SEGUND[AO]|TERCER[AO]|CUART[AO]|QUINT[AO]|SEXT[AO]|S[ÉE]PTIM[AO]|OCTAV[AO]|NOVEN[AO])"
 _DECENA = r"(?:D[ÉE]CIM[AO]|VIG[ÉE]SIM[AO]|TRIG[ÉE]SIM[AO]|CUADRAG[ÉE]SIM[AO])"
-_ORDINAL = rf"(?:{_DECENA}(?:\s+{_UNIDAD})?|{_UNIDAD}|[ÚU]LTIM[AO])"
+_ORDINAL = rf"(?:{_DECENA}(?:\s+{_UNIDAD})?|UND[ÉE]CIM[AO]|DUOD[ÉE]CIM[AO]|{_UNIDAD}|[ÚU]LTIM[AO])"
 
 # Encabezado de cláusula al inicio de línea:
 #   "CLÁUSULA PRIMERA:", "PRIMERA.", "DÉCIMA SEGUNDA -", "1.", "12)", "Cláusula 3"
