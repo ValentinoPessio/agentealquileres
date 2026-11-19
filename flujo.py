@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from langchain_core.messages import AIMessage, ToolMessage
 
-LIMITE_RESULTADO = 800  # caracteres que se muestran del resultado de una tool
+LIMITE_RESULTADO = 30000  # tope de caracteres que se guardan del resultado de una tool (se muestra completo, con scroll)
 
 
 def resumir(texto: str, limite: int = LIMITE_RESULTADO) -> str:

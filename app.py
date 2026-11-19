@@ -124,7 +124,11 @@ def mostrar_paso(paso: dict) -> None:
         if paso["error"]:
             st.error(paso["texto"])
         else:
-            st.code(paso["texto"], language=None)
+            alto = min(420, 40 + 22 * (paso["texto"].count("\n") + len(paso["texto"]) // 90))
+            try:  # `height` en st.code existe solo en versiones recientes de Streamlit
+                st.code(paso["texto"], language=None, wrap_lines=True, height=alto)
+            except TypeError:
+                st.code(paso["texto"], language=None, wrap_lines=True)
 
 
 def mostrar_pasos(pasos: list[dict]) -> None:
